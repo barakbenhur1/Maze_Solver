@@ -412,7 +412,9 @@ public class Board {
                 
                 guard !point.equalTo(location) else { continue }
                 
-                blocksAround[point] = (blocks[point] ?? Block(state: .empty), 9 - (j * (i - Int(location.x - 1)) + j - Int(location.y - 1)))
+                let fixY = j - Int(location.y - 1)
+                let fixI = i - Int(location.x - 1)
+                blocksAround[point] = (blocks[point] ?? Block(state: .empty), 8 - ((2 * fixY) + (fixI + fixY)))
             }
         }
         
