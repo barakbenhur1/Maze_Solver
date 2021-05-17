@@ -10,6 +10,8 @@ import SpriteKit
 
 class ViewController: UIViewController {
     
+    private var check: Bool = true
+    
     private var numOfBlocks = 0
     
     private let minNumOfBlocks = 90
