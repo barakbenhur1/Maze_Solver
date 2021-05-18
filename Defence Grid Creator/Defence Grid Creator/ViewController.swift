@@ -400,8 +400,8 @@ public class Board {
         self.blocks = [CGPoint : Block?]()
     }
     
-    private func getSurroundingsBlocks(location: CGPoint) ->  [CGPoint : (Block?, index: Int)] {
-        var blocksAround: [CGPoint : (Block?, Int)] = [CGPoint : (Block?, Int)]()
+    private func getSurroundingsBlocks(location: CGPoint) ->  [CGPoint : (Block?, index: Double)] {
+        var blocksAround: [CGPoint : (Block?, Double)] = [CGPoint : (Block?, Double)]()
         
         for j in Int(location.y - 1)...Int(location.y + 1) {
             for i in Int(location.x - 1)...Int(location.x + 1) {
@@ -412,16 +412,65 @@ public class Board {
                 
                 guard !point.equalTo(location) else { continue }
                 
-                let fixY = j - Int(location.y - 1)
-                let fixI = i - Int(location.x - 1)
-                blocksAround[point] = (blocks[point] ?? Block(state: .empty), 8 - ((2 * fixY) + (fixI + fixY)))
+//                let fixY = j - Int(location.y - 1)
+//                let fixI = i - Int(location.x - 1)
+//                let score: Double = Double(8 - ((2 * fixY) + (fixI + fixY)))
+//                var fixScore = (i < Int(location.x) || j < Int(location.y) ? score + 0.5 : score)
+//
+//                if i < Int(location.x) && j > Int(location.y) && Int(location.x + 1) < Int(size.x) && Int(location.y + 1) < Int(size.y), let blockCheck = blocks[CGPoint(x: location.x + 1, y: location.y + 1)], blockCheck == nil || blockCheck!.state == .empty {
+//                    fixScore += 2
+//                }
+//
+//                if i != Int(location.x) && j != Int(location.y) {
+//                    fixScore += 18
+//                }
+                var fixScore: Double = 0
+//                let sqrt2 =  sqrt(2)
+                
+                if i < Int(location.x) {
+                    if j < Int(location.y) {
+                       fixScore += 30
+                    }
+                    else if j > Int(location.y) {
+                        fixScore += 24
+                    }
+                    else {
+                        fixScore += 4
+                    }
+                }
+                else if i > Int(location.x) {
+                    if j < Int(location.y) {
+                        fixScore += 26
+                    }
+                    else if j > Int(location.y) {
+                        fixScore += 20
+                    }
+                    else {
+                        fixScore += 2
+                    }
+                }
+                else {
+                    if j < Int(location.y) {
+                        fixScore += 28
+                    }
+                    else if j > Int(location.y) {
+                        fixScore += 1
+                    }
+                    else {
+                        fixScore += Double.leastNormalMagnitude
+                    }
+                }
+                //
+                print("!!!!!!!!!!!!!! original:\(location) i:\(i), j:\(j) score:\(fixScore)")
+                
+                blocksAround[point] = (blocks[point] ?? Block(state: .empty), fixScore)
             }
         }
-        
+        print("!!!!!!!!!!!!!!")
         return blocksAround
     }
     
-    func getSurroundingsFor(location: CGPoint) -> [CGPoint : (block: Block?, index: Int)] {
+    func getSurroundingsFor(location: CGPoint) -> [CGPoint : (block: Block?, index: Double)] {
         return getSurroundingsBlocks(location: location)
     }
     
@@ -637,7 +686,7 @@ class Enemy {
             }
             checkPoints.append(contentsOf: addPoints)
             for point in addPoints {
-                list.add(.directed, from: Vertex(data: checkPoint), to: Vertex(data: point), weight: Double(playSpace[point]!.index))
+                list.add(.directed, from: Vertex(data: checkPoint), to: Vertex(data: point), weight: playSpace[point]!.index)
             }
         }
         
