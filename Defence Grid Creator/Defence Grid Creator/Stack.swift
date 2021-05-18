@@ -47,6 +47,10 @@ public struct Stack<T: Hashable> {
     public func count() -> Int {
         return array.count 
     }
+    
+    public func contains(item: T) -> Bool {
+        return array.contains(item)
+    }
 }
 
 extension Stack: CustomStringConvertible {

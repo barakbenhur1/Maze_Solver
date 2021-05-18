@@ -9,13 +9,15 @@ import UIKit
 import SpriteKit
 
 class ViewController: UIViewController {
-        
+    
+    private let numberOfPlayers = 10
+    
     private var numOfBlocks = 0
     
     private let minNumOfBlocks = 90
     
     private var blocksRange = 10...70
-   
+    
     private let numOfX = 10
     
     private let yStartIndex = 2
@@ -59,7 +61,7 @@ class ViewController: UIViewController {
         
         label.text = "\(leftBlocksCount) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
         
-        print("numOfBlocks: \(numOfBlocks)\nleftBlocks: \(leftBlocks)")
+        ///print("numOfBlocks: \(numOfBlocks)\nleftBlocks: \(leftBlocks)")
         
         blocks = [CGPoint : Block]()
         
@@ -67,13 +69,23 @@ class ViewController: UIViewController {
         let numOfY = Int(view.frame.height / CGFloat(sizeY))
         
         let point = CGPoint(x: numOfX, y: numOfY)
-        let startPoint = CGPoint(x: 0, y: yStartIndex)
+        let start = CGPoint(x: 0, y: yStartIndex)
+        var startPoints: [CGPoint] = [start]
+        
+        while startPoints.count < numberOfPlayers {
+            let randX = Int.random(in: 0...numOfX / 2)
+            let randY = Int.random(in: yStartIndex...numOfY / 3)
+            let point: CGPoint = CGPoint(x: randX , y: randY)
+            guard !startPoints.contains(point) else { continue }
+            startPoints.append(point)
+        }
+        
         let winPoint = CGPoint(x: point.x - 1, y: point.y - 1)
         let padding = CGFloat(numOfX) *  widthRemoval / 2
         let squareSizeRemoval: CGFloat = 0.9
         
-        let container = UIView(frame: CGRect(origin: CGPoint(x: padding + startPoint.x * size2D.width, y: startPoint.y * size2D.height), size: CGSize(width: size2D.width * (winPoint.x - startPoint.x + 1), height: size2D.height * (winPoint.y - startPoint.y + 1))))
-//        container.backgroundColor = .systemGray3
+        let container = UIView(frame: CGRect(origin: CGPoint(x: padding + start.x * size2D.width, y: start.y * size2D.height), size: CGSize(width: size2D.width * (winPoint.x - start.x + 1), height: size2D.height * (winPoint.y - start.y + 1))))
+        
         container.layer.borderWidth = squareSizeRemoval
         container.layer.borderColor = UIColor.darkGray.withAlphaComponent(0.8).cgColor
         
@@ -85,10 +97,6 @@ class ViewController: UIViewController {
                 square.backgroundColor = .init(hexString: "#6082B6", alpha: 0.34)
                 square.layer.borderColor = UIColor.darkGray.withAlphaComponent(0.8).cgColor
                 square.layer.borderWidth = squareSizeRemoval
-//                square.layer.shadowColor = UIColor.black.cgColor
-//                square.layer.shadowOpacity = 1
-//                square.layer.shadowOffset = .init(width: 0.3, height: 0.3)
-//                square.layer.shadowRadius = 10
                 
                 container.addSubview(square)
                 square.clipsToBounds = true
@@ -103,11 +111,18 @@ class ViewController: UIViewController {
             let randomY = Int.random(in: yStartIndex...numOfY - 1)
             
             let key = CGPoint(x: randomX, y: randomY)
-            guard !key.equalTo(startPoint), blocks[key] == nil, !key.equalTo(winPoint) else { continue }
+            var skip = false
+            for startPoint in startPoints {
+                guard !key.equalTo(startPoint), blocks[key] == nil, !key.equalTo(winPoint) else {
+                    skip = true
+                    break
+                }
+            }
+            guard !skip else { continue }
             blocks[key] = Block(name: "block", state: .solid)
         }
         
-        let board = Board(blocks: blocks, view: view, size: point, sizeOfItem: size2D, gameParams: (startPoint, winPoint), padding: CGFloat(numOfX) *  widthRemoval / 2)
+        let board = Board(blocks: blocks, view: view, size: point, sizeOfItem: size2D, numberOfPlayers: numberOfPlayers, gameParams: (startPoints, winPoint), padding: CGFloat(numOfX) *  widthRemoval / 2)
         
         board.start()
         
@@ -126,14 +141,21 @@ class ViewController: UIViewController {
                     leftBlocks = minNumOfBlocks - addNumOfBlocks
                 }
                 leftBlocksCount = leftBlocks
-                print("numOfBlocks: \(numOfBlocks)\nleftBlocks: \(leftBlocks)")
+                ///print("numOfBlocks: \(numOfBlocks)\nleftBlocks: \(leftBlocks)")
                 label.text = "\(leftBlocksCount) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
                 while blocks.count < numOfBlocks {
                     let randomX = Int.random(in: 0...numOfX - 1)
                     let randomY = Int.random(in: yStartIndex...numOfY - 1)
                     
                     let key = CGPoint(x: randomX, y: randomY)
-                    guard !key.equalTo(startPoint), blocks[key] == nil, !key.equalTo(CGPoint(x: point.x - 1, y: point.y - 1)) else { continue }
+                    var skip = false
+                    for startPoint in startPoints {
+                        guard !key.equalTo(startPoint), blocks[key] == nil, !key.equalTo(CGPoint(x: point.x - 1, y: point.y - 1)) else {
+                            skip = true
+                            break
+                        }
+                    }
+                    guard !skip else { continue }
                     blocks[key] = Block(name: "block", state: .solid)
                 }
                 DispatchQueue.main.async {
@@ -145,24 +167,44 @@ class ViewController: UIViewController {
             self.present(alert, animated: true, completion: nil)
         }
         
-        board.addBlock = { [self] point, player in
-            guard leftBlocksCount > 0 else {
-                board.cantAddEffect?(CGRect(x: CGFloat(numOfX) *  widthRemoval / 2 + CGFloat(Int(point.x / CGFloat(sizeX))) * CGFloat(sizeX), y: CGFloat(Int(point.y / CGFloat(sizeY))) * CGFloat(sizeY), width: CGFloat(sizeX), height: CGFloat(sizeY)))
-                return
+        board.addBlock = { [self] point, players in
+            DispatchQueue.main.async {
+                guard leftBlocksCount > 0 else {
+                    board.cantAddEffect?(CGRect(x: CGFloat(numOfX) *  widthRemoval / 2 + CGFloat(Int(point.x / CGFloat(sizeX))) * CGFloat(sizeX), y: CGFloat(Int(point.y / CGFloat(sizeY))) * CGFloat(sizeY), width: CGFloat(sizeX), height: CGFloat(sizeY)))
+                    return
+                }
+                let key = CGPoint(x: Int(point.x / CGFloat(sizeX)), y: Int(point.y / CGFloat(sizeY)))
+                for player in players {
+                    guard !player.location.equalTo(key), !key.equalTo(winPoint), blocks[key] == nil || (blocks[key] as? Block)?.state == .empty else {
+                        board.cantAddEffect?(CGRect(x: CGFloat(numOfX) *  widthRemoval / 2 + CGFloat(Int(point.x / CGFloat(sizeX))) * CGFloat(sizeX), y: CGFloat(Int(point.y / CGFloat(sizeY))) * CGFloat(sizeY), width: CGFloat(sizeX), height: CGFloat(sizeY)))
+                        return
+                    }
+                }
+                blocks = board.getBlocks()
+                blocks[key] = Block(name: "block", state: .solid)
+                board.setBlocks(blocks: blocks)
+                blocks[key]?!.frame = blocks[key]!!.image!.frame
+                
+                for player in players {
+                    if player.isOnTheWay(point: key) {
+                        player.calcGameState()
+                    }
+                    else if player.lose {
+                        if player.think == nil {
+                            player.think = UIImageView(image: UIImage(named: "bubble"))
+                            let size = CGSize(width: player.image.frame.size.width - 15, height: player.image.frame.size.height - 15)
+                            
+                            let origin = (player.image.frame.origin.x > padding + player.image.frame.size.width * player.location.x) ? CGPoint(x: player.image.frame.origin.x + size.width * 0.85, y: player.image.frame.origin.y - size.height / 1.6) : CGPoint(x: player.image.frame.origin.x + size.width / 0.8 , y: player.image.frame.origin.y - size.height / 1.6)
+                            player.think.frame = CGRect(origin: origin, size: size)
+                            
+                            player.image.superview?.addSubview(player.think)
+                        }
+                    }
+                }
+                board.addEffect?(blocks[key]!!)
+                leftBlocksCount -= 1
+                label.text = "\(leftBlocksCount) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
             }
-            let key = CGPoint(x: Int(point.x / CGFloat(sizeX)), y: Int(point.y / CGFloat(sizeY)))
-            guard !player.location.equalTo(key), !key.equalTo(winPoint), blocks[key] == nil || (blocks[key] as? Block)?.state == .empty else {
-                board.cantAddEffect?(CGRect(x: CGFloat(numOfX) *  widthRemoval / 2 + CGFloat(Int(point.x / CGFloat(sizeX))) * CGFloat(sizeX), y: CGFloat(Int(point.y / CGFloat(sizeY))) * CGFloat(sizeY), width: CGFloat(sizeX), height: CGFloat(sizeY)))
-                return
-            }
-            blocks = board.getBlocks()
-            blocks[key] = Block(name: "block", state: .solid)
-            board.setBlocks(blocks: blocks)
-            blocks[key]?!.frame = blocks[key]!!.image!.frame
-            player.calcGameState()
-            board.addEffect?(blocks[key]!!)
-            leftBlocksCount -= 1
-            label.text = "\(leftBlocksCount) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
         }
         
         board.addEffect = { [self] block in
@@ -203,41 +245,43 @@ class ViewController: UIViewController {
     }
     
     private func smokeEffect(block: Block, effectType: EffectType = .add) {
-        if let fireParticles = SKEmitterNode(fileNamed: "Smoke") {
-            fireParticles.particleTexture = SKTexture(imageNamed: effectType.getTextureName())
-            block.image?.alpha = 0
-            fireParticles.numParticlesToEmit = effectType.getNumParticlesToEmit()
-            fireParticles.particleScale = 0.6
-            fireParticles.particleScaleRange = 0.3
-            fireParticles.particleScaleSpeed = -0.2
-            let skView = SKView(frame: block.frame)
-            skView.backgroundColor = .clear
-            let scene = SKScene(size: CGSize(width: 10, height: 10))
-            scene.backgroundColor = .clear
-            skView.presentScene(scene)
-            skView.isUserInteractionEnabled = false
-            scene.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            scene.addChild(fireParticles)
-            scene.backgroundColor = .clear
-            
-            view.addSubview(skView)
-            skView.layer.cornerRadius = 10
-            skView.clipsToBounds = true
-            
-            skView.backgroundColor = .clear
-            
-            let peDelay = SKAction.wait(forDuration: Block.timeToBuild)
-            
-            let peRemove = SKAction.removeFromParent()
-            
-            fireParticles.run(SKAction.sequence([peDelay , peRemove]))
-            
-            fireParticles.targetNode?.removeFromParent()
-            fireParticles.targetNode = nil
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + Block.timeToBuild) {
-                skView.removeFromSuperview()
-                block.image?.alpha = 1
+        block.image?.alpha = 0
+        DispatchQueue.main.async {
+            if let fireParticles = SKEmitterNode(fileNamed: "Smoke") {
+                fireParticles.particleTexture = SKTexture(imageNamed: effectType.getTextureName())
+                fireParticles.numParticlesToEmit = effectType.getNumParticlesToEmit()
+                fireParticles.particleScale = 0.6
+                fireParticles.particleScaleRange = 0.3
+                fireParticles.particleScaleSpeed = -0.2
+                let skView = SKView(frame: block.frame)
+                skView.backgroundColor = .clear
+                let scene = SKScene(size: CGSize(width: 10, height: 10))
+                scene.backgroundColor = .clear
+                skView.presentScene(scene)
+                skView.isUserInteractionEnabled = false
+                scene.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+                scene.addChild(fireParticles)
+                scene.backgroundColor = .clear
+                
+                self.view.addSubview(skView)
+                skView.layer.cornerRadius = 10
+                skView.clipsToBounds = true
+                
+                skView.backgroundColor = .clear
+                
+                let peDelay = SKAction.wait(forDuration: Block.timeToBuild)
+                
+                let peRemove = SKAction.removeFromParent()
+                
+                fireParticles.run(SKAction.sequence([peDelay , peRemove]))
+                
+                fireParticles.targetNode?.removeFromParent()
+                fireParticles.targetNode = nil
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + Block.timeToBuild) {
+                    skView.removeFromSuperview()
+                    block.image?.alpha = 1
+                }
             }
         }
     }
@@ -262,7 +306,9 @@ class ViewController: UIViewController {
 public class Board {
     private var blocks: [CGPoint : Block?]!
 
-    private var player: Enemy!
+    private var players: [Enemy]!
+    
+    private var numOfPlayers: Int!
     
     private var container: UIView!
     
@@ -272,7 +318,7 @@ public class Board {
     
     private var sizeOfItem: CGSize = .zero
     
-    private var startLocation: CGPoint = .zero
+    private var startLocations: [CGPoint] = [.zero]
     
     private var padding: CGFloat = 0
     
@@ -284,10 +330,12 @@ public class Board {
     
     var cantAddEffect: ((CGRect) -> ())?
     
-    var addBlock: ((CGPoint, Enemy) -> ())?
+    var addBlock: ((CGPoint, [Enemy]) -> ())?
     
-    init(blocks: [CGPoint : Block?], view: UIView?, size: CGPoint, sizeOfItem: CGSize, gameParams: (startLocation: CGPoint, winLocation: CGPoint), padding: CGFloat) {
+    init(blocks: [CGPoint : Block?], view: UIView?, size: CGPoint, sizeOfItem: CGSize, numberOfPlayers: Int, gameParams: (startLocations: [CGPoint], winLocation: CGPoint), padding: CGFloat) {
+        self.players = [Enemy]()
         self.blocks = blocks
+        numOfPlayers = numberOfPlayers
         container = view
         let tap = UITapGestureRecognizer(target: self, action: #selector(addBlockTap(gestureRecognizer:)))
         container.addGestureRecognizer(tap)
@@ -301,7 +349,7 @@ public class Board {
         
         self.padding = padding
         
-        self.startLocation = gameParams.startLocation
+        self.startLocations = gameParams.startLocations
         self.win = gameParams.winLocation
         
         if view != nil {
@@ -318,21 +366,31 @@ public class Board {
         return blocks
     }
     
+    func isGameOver() -> Bool {
+        for player in players {
+            if !player.isFinish {
+                return false
+            }
+        }
+        
+        return true
+    }
+    
     @objc private func addBlockTap(gestureRecognizer: UITapGestureRecognizer) {
         
         guard clickAllowed else { return }
         
         let point = gestureRecognizer.location(in: container)
         
-        guard point.x <= size.x * sizeOfItem.width, point.x >= startLocation.x * sizeOfItem.width, point.y <= size.y * sizeOfItem.height, point.y >= startLocation.y * sizeOfItem.height else { return }
+        guard point.x <= size.x * sizeOfItem.width, point.x >= startLocations.first!.x * sizeOfItem.width, point.y <= size.y * sizeOfItem.height, point.y >= startLocations.first!.y * sizeOfItem.height else { return }
         
         clickAllowed = false
         
         DispatchQueue.main.asyncAfter(deadline: .now() + Block.timeToBuild) {
             self.clickAllowed = true
         }
-
-        addBlock?(point, player)
+        
+        addBlock?(point, players)
     }
     
     func setBlocks(blocks: [CGPoint : Block?]) {
@@ -356,48 +414,61 @@ public class Board {
     
     func start() {
         clickAllowed = true
-        self.player = Enemy(start: startLocation, win: win, padding: padding, playerSpeed: playerMoveTime)
-        
-        container.addSubview(player.image)
-        player.image.frame = CGRect(x: padding + startLocation.x * sizeOfItem.width, y: startLocation.y * sizeOfItem.height , width: sizeOfItem.width, height: sizeOfItem.height)
-        
-        player.moveInformer = { [self] location in
-            clickAllowed = clickAllowed && !location.equalTo(win)
-            print("===============Animate")
-            UIView.animate(withDuration: playerMoveAnimationTime) {
-                let image = UIImage(cgImage: player.image.image!.cgImage!, scale: 1.0, orientation: player.image.frame.origin.x > padding + sizeOfItem.width * location.x ? .upMirrored : .up)
-                player.image.image = image
-                player.image.frame = CGRect(x: padding + sizeOfItem.width * location.x, y: sizeOfItem.height * location.y , width: sizeOfItem.width , height: sizeOfItem.height)
-                
-                if player.think != nil {
-                    let size = CGSize(width: player.image.frame.size.width - 15, height: player.image.frame.size.height - 15)
-                    let origin = CGPoint(x: player.image.frame.origin.x + size.width / 0.8 , y: player.image.frame.origin.y - size.height / 1.6)
-                    player.think.frame = CGRect(origin: origin, size: size)
+        while players.count < numOfPlayers {
+            let player = Enemy(type: players.count == 0 ? .player : .enemy, start: startLocations[players.count], win: win, padding: padding, playerSpeed: playerMoveTime)
+            
+            container.addSubview(player.image)
+            player.image.frame = CGRect(x: padding + startLocations[players.count].x * sizeOfItem.width, y: startLocations[players.count].y * sizeOfItem.height , width: sizeOfItem.width, height: sizeOfItem.height)
+            
+            player.moveInformer = { [self] location in
+                if location.equalTo(win) {
+                    clickAllowed = clickAllowed && !isGameOver()
+                }
+                ///print("===============Animate")
+                UIView.animate(withDuration: playerMoveAnimationTime) {
+                    let image = UIImage(cgImage: player.image.image!.cgImage!, scale: 1.0, orientation: player.image.frame.origin.x > padding + sizeOfItem.width * location.x ? .upMirrored : .up)
+                    player.image.image = image
+                    player.image.frame = CGRect(x: padding + sizeOfItem.width * location.x, y: sizeOfItem.height * location.y , width: sizeOfItem.width , height: sizeOfItem.height)
+                    
+                    if player.think != nil {
+                        let size = CGSize(width: player.image.frame.size.width - 15, height: player.image.frame.size.height - 15)
+                        let origin = (player.image.frame.origin.x > padding + player.image.frame.size.width * player.location.x) ? CGPoint(x: player.image.frame.origin.x + size.width * 0.85, y: player.image.frame.origin.y - size.height / 1.6) : CGPoint(x: player.image.frame.origin.x + size.width / 0.8 , y: player.image.frame.origin.y - size.height / 1.6)
+                        player.think.frame = CGRect(origin: origin, size: size)
+                    }
                 }
             }
-        }
-        
-        player.attachBoardInformer(boardInformer: { () -> (Board?) in
-            return self
-        })
-        
-        self.player.startOver = { text in
-            self.startOver?(text)
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + startDelay) { [self] in
-            player.start()
+            
+            player.attachBoardInformer(boardInformer: { () -> (Board?) in
+                return self
+            })
+            
+            player.startOver = { text in
+                guard self.isGameOver() else { return }
+                for player in self.players {
+                    guard player.think != nil else { continue }
+                    player.think.removeFromSuperview()
+                }
+                self.startOver?(text)
+            }
+            
+            players.append(player)
+            DispatchQueue.main.asyncAfter(deadline: .now() + startDelay) {
+                player.start()
+            }
         }
     }
     
     func reset() {
-        guard self.player != nil else { return }
-        self.player.image.removeFromSuperview()
+        guard self.players != nil else { return }
+        for i in 0..<self.players.count {
+            self.players[i].image.removeFromSuperview()
+        }
         for key in self.blocks.keys {
             guard let block = self.blocks[key] as? Block else { return }
             block.image?.removeFromSuperview()
         }
         self.blocks = [CGPoint : Block?]()
+        self.players = [Enemy]()
     }
     
     private func getSurroundingsBlocks(location: CGPoint) ->  [CGPoint : (Block?, index: Double)] {
@@ -406,67 +477,64 @@ public class Board {
         for j in Int(location.y - 1)...Int(location.y + 1) {
             for i in Int(location.x - 1)...Int(location.x + 1) {
                 
-                guard i >= Int(startLocation.x) && i < Int(size.x), j >= Int(startLocation.y) && j < Int(size.y)  else { continue }
+                guard i >= Int(startLocations.first!.x) && i < Int(size.x), j >= Int(startLocations.first!.y) && j < Int(size.y)  else { continue }
                 
                 let point: CGPoint = CGPoint(x: i, y: j)
                 
                 guard !point.equalTo(location) else { continue }
                 
-//                let fixY = j - Int(location.y - 1)
-//                let fixI = i - Int(location.x - 1)
-//                let score: Double = Double(8 - ((2 * fixY) + (fixI + fixY)))
-//                var fixScore = (i < Int(location.x) || j < Int(location.y) ? score + 0.5 : score)
+                let fixY = j - Int(location.y - 1)
+                let fixI = i - Int(location.x - 1)
+                let score: Double = Double(8 - ((2 * fixY) + (fixI + fixY)))
+                var fixScore = (i < Int(location.x) || j < Int(location.y) ? score + 0.5 : score)
+
+                if i < Int(location.x) && j > Int(location.y) && Int(location.x + 1) < Int(size.x) && Int(location.y + 1) < Int(size.y), let blockCheck = blocks[CGPoint(x: location.x + 1, y: location.y + 1)], blockCheck == nil || blockCheck!.state == .empty {
+                    fixScore += 2
+                }
+
+//                var fixScore: Double = 0
+////                let sqrt2 =  sqrt(2)
 //
-//                if i < Int(location.x) && j > Int(location.y) && Int(location.x + 1) < Int(size.x) && Int(location.y + 1) < Int(size.y), let blockCheck = blocks[CGPoint(x: location.x + 1, y: location.y + 1)], blockCheck == nil || blockCheck!.state == .empty {
-//                    fixScore += 2
+//                if i < Int(location.x) {
+//                    if j < Int(location.y) {
+//                       fixScore += 30
+//                    }
+//                    else if j > Int(location.y) {
+//                        fixScore += 24
+//                    }
+//                    else {
+//                        fixScore += 4
+//                    }
 //                }
-//
-//                if i != Int(location.x) && j != Int(location.y) {
-//                    fixScore += 18
+//                else if i > Int(location.x) {
+//                    if j < Int(location.y) {
+//                        fixScore += 26
+//                    }
+//                    else if j > Int(location.y) {
+//                        fixScore += 20
+//                    }
+//                    else {
+//                        fixScore += 2
+//                    }
 //                }
-                var fixScore: Double = 0
-//                let sqrt2 =  sqrt(2)
-                
-                if i < Int(location.x) {
-                    if j < Int(location.y) {
-                       fixScore += 30
-                    }
-                    else if j > Int(location.y) {
-                        fixScore += 24
-                    }
-                    else {
-                        fixScore += 4
-                    }
-                }
-                else if i > Int(location.x) {
-                    if j < Int(location.y) {
-                        fixScore += 26
-                    }
-                    else if j > Int(location.y) {
-                        fixScore += 20
-                    }
-                    else {
-                        fixScore += 2
-                    }
-                }
-                else {
-                    if j < Int(location.y) {
-                        fixScore += 28
-                    }
-                    else if j > Int(location.y) {
-                        fixScore += 1
-                    }
-                    else {
-                        fixScore += Double.leastNormalMagnitude
-                    }
-                }
-                //
-                print("!!!!!!!!!!!!!! original:\(location) i:\(i), j:\(j) score:\(fixScore)")
+//                else {
+//                    if j < Int(location.y) {
+//                        fixScore += 28
+//                    }
+//                    else if j > Int(location.y) {
+//                        fixScore += 1
+//                    }
+//                    else {
+//                        fixScore += Double.leastNormalMagnitude
+//                    }
+//                }
+//                //
+//                ///print("!!!!!!!!!!!!!! original:\(location) i:\(i), j:\(j) score:\(fixScore)")
                 
                 blocksAround[point] = (blocks[point] ?? Block(state: .empty), fixScore)
             }
         }
-        print("!!!!!!!!!!!!!!")
+//        ///print("!!!!!!!!!!!!!!")
         return blocksAround
     }
     
@@ -474,30 +542,31 @@ public class Board {
         return getSurroundingsBlocks(location: location)
     }
     
-    func getClosestToWin() -> CGPoint? {
-        
-        for i in Int(startLocation.x)..<Int(size.x) {
-            for j in Int(startLocation.y)..<Int(size.y) {
-                let key = CGPoint(x: i, y: j)
-                guard !key.equalTo(win) else { continue }
-                self.blocks[key] = self.blocks[key] ?? Block(state: .empty)
-            }
-        }
-        
-        var best: CGPoint? = nil
-        var bestDistance: CGFloat = distance(from: player.location, to: win)
-        for tuple in blocks {
-            if tuple.value?.state == .empty {
-                let distanceCompere = distance(from: tuple.key, to: win)
-                
-                if distanceCompere < bestDistance && !player.lookForWay(location: player.location, winLocation: tuple.key).real.isEmpty() {
-                    bestDistance = distanceCompere
-                    best = tuple.key
+    func getClosestToWin(player: Enemy, bestMatch: @escaping (CGPoint?) -> ()) {
+        DispatchQueue.main.async { [self] in
+            for i in Int(startLocations.first!.x)..<Int(size.x) {
+                for j in Int(startLocations.first!.y)..<Int(size.y) {
+                    let key = CGPoint(x: i, y: j)
+                    guard !key.equalTo(win) else { continue }
+                    self.blocks[key] = self.blocks[key] ?? Block(state: .empty)
                 }
             }
+            
+            var best: CGPoint? = nil
+            var bestDistance: CGFloat = distance(from: player.location, to: win)
+            for tuple in blocks {
+                if tuple.value?.state == .empty {
+                    let distanceCompere = distance(from: tuple.key, to: win)
+                    
+                    if distanceCompere < bestDistance && !player.lookForWay(location: player.location, winLocation: tuple.key).isEmpty() {
+                        bestDistance = distanceCompere
+                        best = tuple.key
+                    }
+                }
+            }
+            
+            bestMatch(best)
         }
-        
-        return best
     }
     
     private func distance(from: CGPoint, to: CGPoint) -> CGFloat {
@@ -513,31 +582,42 @@ public class Board {
     }
 }
 
-class Enemy {
+class Enemy: CustomStringConvertible {
+    
+     var description: String {
+        return "\nlocation: \(location!)\nisFinish: \(isFinish)\nlose: \(lose)\nstack: \(stack.description)"
+    }
     
     enum Condition {
         case move, lose, win
+    }
+    
+    enum PlayerType {
+        case player, enemy
     }
     
     var location: CGPoint!
     var think: UIImageView!
     private var winLocation: CGPoint!
     private var boardInformer: (() -> (Board?))?
+    private var playerType: PlayerType = .player
     var moveInformer: ((CGPoint) -> ())?
     var startOver: ((String) -> ())?
     var image: UIImageView!
+    var isFinish = false
     
     private var playerMoveSpeed: Double = 0
     
     private var stack: Stack<Vertex<CGPoint>>!
     
-    private var lose = false
+    var lose = false
     
     private var timer: Timer!
     
     private var xPadding: CGFloat = 0
     
-    init(start: CGPoint ,win: CGPoint, padding: CGFloat, playerSpeed: Double) {
+    init(type: PlayerType,start: CGPoint ,win: CGPoint, padding: CGFloat, playerSpeed: Double) {
+        playerType = type
         location = start
         image = UIImageView(image: UIImage(named: "enemy"))
         winLocation = win
@@ -549,12 +629,12 @@ class Enemy {
     
     func start() {
         stack = Stack<Vertex<CGPoint>>()
+        calcGameState(initial: true)
         timerControl(start: true, initial: true)
     }
     
     func timerControl(start: Bool, initial: Bool = false) {
         if start {
-            calcGameState(initial: initial)
             timer = Timer(timeInterval: playerMoveSpeed, repeats: true) { (timer) in
                 self.checkWhereToGo()
             }
@@ -575,6 +655,10 @@ class Enemy {
         self.boardInformer = boardInformer
     }
     
+    func isOnTheWay(point: CGPoint) -> Bool {
+        return stack.contains(item: Vertex<CGPoint>(data: point))
+    }
+    
     func calcGameState(initial: Bool = false) {
         if initial {
             calcState()
@@ -582,53 +666,55 @@ class Enemy {
         else {
             DispatchQueue.main.async { [weak self] in
                 guard let strongSelf = self else { return }
-                print("===============Calc")
+                strongSelf.timerControl(start: false)
+                ///print("===============Calc")
                 strongSelf.calcState()
+                ///print("===============Finish")
+                strongSelf.timerControl(start: true)
             }
         }
     }
     
     private func calcState() {
-        let way = lookForWay(location: location, winLocation: winLocation)
-        
-        lose = way.real.isEmpty()
-        
-        if lose {
-            if think == nil {
-                think = UIImageView(image: UIImage(named: "bubble"))
-                let size = CGSize(width: image.frame.size.width - 15, height: image.frame.size.height - 15)
-                let origin = CGPoint(x: image.frame.origin.x + size.width / 0.8 , y: image.frame.origin.y - size.height / 1.6)
-                think.frame = CGRect(origin: origin, size: size)
-                
-                image.superview?.addSubview(think)
+        DispatchQueue.main.async { [self] in
+            let way = lookForWay(location: location, winLocation: winLocation)
+            
+            lose = way.isEmpty()
+            
+            if lose {
+                if think == nil {
+                    think = UIImageView(image: UIImage(named: "bubble"))
+                    let size = CGSize(width: image.frame.size.width - 15, height: image.frame.size.height - 15)
+                    let origin = (image.frame.origin.x > xPadding + image.frame.size.width * location.x) ? CGPoint(x: image.frame.origin.x + size.width * 0.85, y: image.frame.origin.y - size.height / 1.6) : CGPoint(x: image.frame.origin.x + size.width / 0.8 , y: image.frame.origin.y - size.height / 1.6)
+                    think.frame = CGRect(origin: origin, size: size)
+                    
+                    image.superview?.addSubview(think)
+                }
+                boardInformer!()!.getClosestToWin(player: self) { (best) in
+                    let bestWay = lookForWay(location: location, winLocation: best ?? location)
+                    stack = bestWay
+                }
+                return
             }
-            let bestWay = lookForWay(location: location, winLocation: boardInformer!()!.getClosestToWin() ?? location).real
-            stack = bestWay
-            print("lose: \(stack.description)")
-            return
+            
+            stack = way
         }
-        
-        stack = way.real
     }
     
     private var delay: Double = 0.3
     private var restartDelay: Double = 0.5
     
     private func checkWhereToGo() {
-        print("...........check where to go............")
+//        ///print("...........check where to go............")
         
         var condition: Condition = stack.isEmpty() ? .lose : .move
-//        var skip: Bool = false
         if !lose || condition != .lose {
             let next = stack.queuePop()?.data
-//            if next != nil {
-//                skip = next!.equalTo(location)
-//            }
             location = next ?? location
             condition = location.equalTo(winLocation) ? .win : .move
         }
         
-        print("\(stack.isEmpty())")
+//        ///print("\(stack.isEmpty())")
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             if self.think != nil {
@@ -639,14 +725,16 @@ class Enemy {
         
         switch condition {
         case .lose:
-            print("move to \(location!)")
-            print("WINNER WINNER")
+            isFinish = true
+            ///print("move to \(location!)")
+            ///print("WINNER WINNER")
             if timer != nil {
                 timer.invalidate()
             }
             timer = nil
             startOver?("You Win")
         case .win:
+            isFinish = true
             moveInformer?(location)
             if timer != nil {
                 timer.invalidate()
@@ -654,8 +742,8 @@ class Enemy {
             timer = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
                 image.alpha = 0.6
-                print("move to \(location!)")
-                print("LOASER LOASER")
+                ///print("move to \(location!)")
+                ///print("LOASER LOASER")
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + restartDelay) {
                     self.startOver?("You Lose")
@@ -663,13 +751,13 @@ class Enemy {
             }
         default:
 //            guard !skip else { return }
-            print("move to \(location!) !!!!!")
+            ///print("move to \(location!) !!!!!")
             moveInformer?(location)
         }
     }
     
-    func lookForWay(location: CGPoint, winLocation: CGPoint) -> (list: AdjacencyList<CGPoint>, real: Stack<Vertex<CGPoint>>) {
-        guard let boardInformer = boardInformer else { return (AdjacencyList<CGPoint>(), Stack<Vertex<CGPoint>>())}
+    func lookForWay(location: CGPoint, winLocation: CGPoint) ->  Stack<Vertex<CGPoint>> {
+        guard let boardInformer = boardInformer else { return Stack<Vertex<CGPoint>>() }
         let list = AdjacencyList<CGPoint>()
         var checkPoints: [CGPoint] = [location]
         var doneCheckPoints: [CGPoint] = [CGPoint]()
@@ -692,9 +780,9 @@ class Enemy {
         
         let result = depthFirstSearch(from: Vertex(data: location), to: Vertex(data: winLocation), graph: list)
         
-        let stack = (list, result)
+        let stack = result
        
-        print(stack)
+//        ///print(stack)
         
         return stack
     }
@@ -714,7 +802,7 @@ class Enemy {
         outer: while let vertex = stack.peek(), vertex != end { // 1
             
             guard let neighbors = graph.edges(from: vertex), neighbors.count > 0 else { // 2
-                print("backtrack from \(vertex)")
+//                ///print("backtrack from \(vertex)")
                 stack.pop()
                 continue
             }
@@ -723,7 +811,7 @@ class Enemy {
                 if !visited.contains(edge.destination) {
                     visited.insert(edge.destination)
                     stack.push(edge.destination)
-                    print(stack.description)
+//                    ///print(stack.description)
                     if stack.count() > stackTrack.count() {
                         stackTrack = stack
                     }
@@ -731,7 +819,7 @@ class Enemy {
                 }
             }
             
-            print("backtrack from \(vertex)") // 4
+//            ///print("backtrack from \(vertex)") // 4
             stack.pop()
         }
     
