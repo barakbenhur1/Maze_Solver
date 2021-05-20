@@ -17,6 +17,10 @@ public struct Stack<T: Hashable> {
         return array.isEmpty ? nil : array.removeFirst()
     }
     
+    public func peekFirst() -> T? {
+        return array.isEmpty ? nil : array[0]
+    }
+    
     public mutating func filter() {
         var set = [T]()
         for item in array {

@@ -121,7 +121,7 @@ class ViewController: UIViewController {
             blocksTemp![key] = Block(name: "block", state: .solid)
             let list = Board(blocks: blocksTemp!, view: view, size: point, sizeOfItem: size2D, numberOfPlayers: numberOfPlayers, gameParams: (startPoints, winPoint), padding: CGFloat(numOfX) *  widthRemoval / 2).getGraph(from: startPoints.first!)
             
-            let stack = Enemy(type: .player, start: startPoints.first!, win: winPoint, padding: padding, playerSpeed: 0.38).depthFirstSearch(from: Vertex(data: startPoints.first!), to: Vertex(data: winPoint), graph: list)
+            let stack = Character(type: .player, start: startPoints.first!, win: winPoint, padding: padding, playerSpeed: 0.38).depthFirstSearch(from: Vertex(data: startPoints.first!), to: Vertex(data: winPoint), graph: list)
             
             if stack.isEmpty() {
                 numOfSkips += 1
@@ -180,7 +180,7 @@ class ViewController: UIViewController {
                     blocksTemp[key] = Block(name: "block", state: .solid)
                     let list = Board(blocks: blocksTemp, view: view, size: point, sizeOfItem: size2D, numberOfPlayers: numberOfPlayers, gameParams: (startPoints, winPoint), padding: CGFloat(numOfX) *  widthRemoval / 2).getGraph(from: startPoints.first!)
                     
-                    let stack = Enemy(type: .player, start: startPoints.first!, win: winPoint, padding: padding, playerSpeed: 0.38).depthFirstSearch(from: Vertex(data: startPoints.first!), to: Vertex(data: winPoint), graph: list)
+                    let stack = Character(type: .player, start: startPoints.first!, win: winPoint, padding: padding, playerSpeed: 0.38).depthFirstSearch(from: Vertex(data: startPoints.first!), to: Vertex(data: winPoint), graph: list)
                     
                     if stack.isEmpty() {
                         numOfSkips += 1
@@ -352,7 +352,9 @@ class ViewController: UIViewController {
 public class Board {
     private var blocks: [CGPoint : Block?]!
     
-    private var players: [Enemy]!
+    private var winImage: UIImageView!
+    
+    private var players: [Character]!
     
     private var numOfPlayers: Int!
     
@@ -376,7 +378,7 @@ public class Board {
     
     var cantAddEffect: ((CGRect) -> ())?
     
-    var addBlock: ((CGPoint, [Enemy]) -> ())?
+    var addBlock: ((CGPoint, [Character]) -> ())?
     
     var blocksUpdate: (([CGPoint : Block?]) -> ())?
     
@@ -387,11 +389,11 @@ public class Board {
     var moveBlockUp: UISwipeGestureRecognizer!
     
     init(blocks: [CGPoint : Block?], view: UIView?, size: CGPoint, sizeOfItem: CGSize, numberOfPlayers: Int, gameParams: (startLocations: [CGPoint], winLocation: CGPoint), padding: CGFloat) {
-        self.players = [Enemy]()
+        self.players = [Character]()
         self.blocks = blocks
         numOfPlayers = numberOfPlayers
         container = view
-        let winImage = UIImageView(image: UIImage(named: "win"))
+        winImage = UIImageView(image: UIImage(named: "win"))
         view?.addSubview(winImage)
         winImage.frame = CGRect(x: padding + (size.x - 1) *  sizeOfItem.width, y: (size.y - 1) *  sizeOfItem.height, width: sizeOfItem.width, height: sizeOfItem.height)
         
@@ -419,6 +421,8 @@ public class Board {
             guard let block = blocks[key] as? Block else { return }
             block.image?.removeFromSuperview()
         }
+        
+        winImage.removeFromSuperview()
         
         if let tap = tap {
             container.removeGestureRecognizer(tap)
@@ -558,6 +562,7 @@ public class Board {
     
     private var startDelay: Double = 0.1
     private var playerMoveTime: Double = 0.38
+    private var enemyMoveTime: Double = 0.48
     private var playerMoveAnimationTime: Double = 0.4
     
     func start() {
@@ -580,10 +585,19 @@ public class Board {
         
         clickAllowed = true
         while players.count < numOfPlayers {
-            let player = Enemy(type: players.count == 0 ? .player : .enemy, start: startLocations[players.count], win: win, padding: padding, playerSpeed: playerMoveTime)
+            let player = Character(type: players.count == 0 ? .player : .enemy, start: startLocations[players.count], win: win, padding: padding, playerSpeed: players.count == 0 ? playerMoveTime : enemyMoveTime)
             
             container.addSubview(player.image)
             player.image.frame = CGRect(x: padding + startLocations[players.count].x * sizeOfItem.width, y: startLocations[players.count].y * sizeOfItem.height , width: sizeOfItem.width, height: sizeOfItem.height)
+            
+            player.isMoveAllowed = { [self] location in
+                guard !location.equalTo(win) else { return true }
+                for character in players {
+                    guard player != character else { continue }
+                    guard !location.equalTo(character.location) else { return false }
+                }
+                return true
+            }
             
             player.moveInformer = { [self] location in
                 if location.equalTo(win) {
@@ -634,7 +648,7 @@ public class Board {
             block.image?.removeFromSuperview()
         }
         self.blocks = [CGPoint : Block?]()
-        self.players = [Enemy]()
+        self.players = [Character]()
     }
     
     private func getSurroundingsBlocks(location: CGPoint) ->  [CGPoint : (Block?, index: Double)] {
@@ -682,7 +696,7 @@ public class Board {
         return list
     }
     
-    func getClosestToWin(player: Enemy, bestMatch: @escaping (CGPoint?) -> ()) {
+    func getClosestToWin(player: Character, bestMatch: @escaping (CGPoint?) -> ()) {
         DispatchQueue.main.async { [self] in
             for i in 0..<Int(size.x) {
                 for j in 0..<Int(size.y) {
@@ -724,7 +738,7 @@ public class Board {
     }
 }
 
-class Enemy: CustomStringConvertible {
+class Character: CustomStringConvertible {
     
     var description: String {
         return "\nlocation: \(location!)\nisFinish: \(isFinish)\nlose: \(lose)\nstack: \(stack.description)"
@@ -736,6 +750,15 @@ class Enemy: CustomStringConvertible {
     
     enum PlayerType {
         case player, enemy
+        
+        func getImage() -> UIImage {
+            switch self {
+            case .player:
+                return UIImage(named: "player")!
+            default:
+                return UIImage(named: "enemy")!
+            }
+        }
     }
     
     var location: CGPoint!
@@ -744,9 +767,12 @@ class Enemy: CustomStringConvertible {
     private var boardInformer: (() -> (Board?))?
     private var playerType: PlayerType = .player
     var moveInformer: ((CGPoint) -> ())?
+    var isMoveAllowed: ((CGPoint) -> (Bool))?
     var startOver: ((String) -> ())?
     var image: UIImageView!
     var isFinish = false
+    private static var numID = 0
+    private let id: String!
     
     private var playerMoveSpeed: Double = 0
     
@@ -761,12 +787,22 @@ class Enemy: CustomStringConvertible {
     init(type: PlayerType,start: CGPoint ,win: CGPoint, padding: CGFloat, playerSpeed: Double) {
         playerType = type
         location = start
-        image = UIImageView(image: UIImage(named: "enemy"))
+        image = UIImageView(image: type.getImage())
         winLocation = win
         xPadding = padding
         playerMoveSpeed = playerSpeed
+        id = "\(Character.numID)"
+        Character.numID += 1
         
         moveInformer?(location)
+    }
+    
+    static func == (lh: Character, rh: Character) -> Bool {
+        return lh.id == rh.id
+    }
+    
+    static func != (lh: Character, rh: Character) -> Bool {
+        return !(lh == rh)
     }
     
     func start() {
@@ -851,6 +887,7 @@ class Enemy: CustomStringConvertible {
         
         var condition: Condition = stack.isEmpty() ? .lose : .move
         if !lose || condition != .lose {
+            guard let point = stack.peekFirst()?.data, let isMoveAllowed = isMoveAllowed, isMoveAllowed(point) else { return }
             let next = stack.queuePop()?.data
             location = next ?? location
             condition = location.equalTo(winLocation) ? .win : .move
