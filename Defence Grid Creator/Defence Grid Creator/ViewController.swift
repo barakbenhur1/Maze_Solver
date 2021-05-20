@@ -584,6 +584,7 @@ public class Board {
         container?.addGestureRecognizer(moveBlockDown)
         
         clickAllowed = true
+        
         while players.count < numOfPlayers {
             let player = Character(type: players.count == 0 ? .player : .enemy, start: startLocations[players.count], win: win, padding: padding, playerSpeed: players.count == 0 ? playerMoveTime : enemyMoveTime)
             
