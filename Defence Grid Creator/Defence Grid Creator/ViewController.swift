@@ -721,7 +721,7 @@ public class Board {
             
             player.startOver = { [self] text in
                 player.isFinish = true
-                
+                didWin = false
                 guard player.playerType == .player || self.isGameOver() else { return }
                 didWin = player.playerType == .player && !player.lose
                 for player in self.players {
