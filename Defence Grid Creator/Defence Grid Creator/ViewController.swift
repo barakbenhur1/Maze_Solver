@@ -16,6 +16,8 @@ class ViewController: UIViewController {
     
     private let minNumOfBlocks = 90
     
+    private let minNumSpoonedOfBlocks = 30
+    
     private var blocksRange = 10...70
     
     private let numOfX = 10
@@ -35,12 +37,12 @@ class ViewController: UIViewController {
         view.addSubview(label)
         
         numOfBlocks = Int.random(in: blocksRange)
-        var leftBlocks = Int.random(in: blocksRange)
+        var leftBlocks = 3
         
         let totalBlocks = numOfBlocks + leftBlocks
         
         if totalBlocks < minNumOfBlocks {
-            let addNumOfBlocks = Int.random(in: 0...minNumOfBlocks - totalBlocks)
+            let addNumOfBlocks = Int.random(in: minNumSpoonedOfBlocks...minNumOfBlocks - totalBlocks)
             numOfBlocks += addNumOfBlocks
             leftBlocks = minNumOfBlocks - addNumOfBlocks
         }
@@ -142,70 +144,86 @@ class ViewController: UIViewController {
         var startOverStart = false
         board.startOver = { [unowned self] text in
             guard board.isGameOver(), !startOverStart else { return }
+            let win = text.lowercased().contains("win")
+            board.numUnFinishedPlayers -= 1
             startOverStart = true
-            print("Status: \(text)\(text.lowercased().contains("win") ? blocks.description: "")")
-            let alert = UIAlertController(title: text, message:  "Start Over", preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Start", style: .default, handler: { [self] action in
-                blocks = [CGPoint : Block]()
-                numOfBlocks = Int.random(in: blocksRange)
-                leftBlocks = Int.random(in: blocksRange)
-                
-                let totalBlocks = numOfBlocks + leftBlocks
-                
-                if totalBlocks < minNumOfBlocks {
-                    let addNumOfBlocks = Int.random(in: 0...minNumOfBlocks - totalBlocks)
-                    numOfBlocks += addNumOfBlocks
-                    leftBlocks = minNumOfBlocks - addNumOfBlocks
-                }
-                leftBlocksCount = leftBlocks
-                
-                label.text = "\(leftBlocksCount) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
-                var numOfSkips = 0
-                while blocks.count < numOfBlocks {
-                    let randomX = Int.random(in: 0...numOfX - 1)
-                    let randomY = Int.random(in: yStartIndex...numOfY - 1)
-                    
-                    let key = CGPoint(x: randomX, y: randomY)
-                    var skip = false
-                    for startPoint in startPoints {
-                        guard !key.equalTo(startPoint), blocks[key] == nil, !key.equalTo(CGPoint(x: point.x - 1, y: point.y - 1)) else {
-                            skip = true
-                            break
-                        }
+            let alert = UIAlertController(title: text, message: win ? "Well Done :)" : "Too Bed :(", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: win ? "Next" : "Retry", style: .default, handler: { [self] action in
+                board.numUnFinishedPlayers = numberOfPlayers
+                board.container.alpha = 0.2
+                guard win else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        board.container.alpha = 1
+                        label.text = "\(leftBlocks) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
+                        leftBlocksCount = leftBlocks
+                        startOverStart = false
+                        board.restart()
                     }
-                    
-                    guard !skip else { continue }
-                    var blocksTemp = [CGPoint : Block?]()
-                    blocksTemp = blocks
-                    blocksTemp[key] = Block(name: "block", state: .solid)
-                    let list = Board(blocks: blocksTemp, view: view, size: point, sizeOfItem: size2D, numberOfPlayers: numberOfPlayers, gameParams: (startPoints, winPoint), padding: CGFloat(numOfX) *  widthRemoval / 2).getGraph(from: startPoints.first!)
-                    
-                    let stack = Character(type: .player, start: startPoints.first!, win: winPoint, padding: padding, playerSpeed: 0.38).depthFirstSearch(from: Vertex(data: startPoints.first!), to: Vertex(data: winPoint), graph: list)
-                    
-                    if stack.isEmpty() {
-                        numOfSkips += 1
-                        if numOfSkips > 80 {
-                            numOfSkips = 0
-                            numOfBlocks -= 1
-                        }
-                        skip = true
-                    }
-                    guard !skip else { continue }
-                    blocks[key] = Block(name: "block", state: .solid)
+                    return
                 }
                 DispatchQueue.main.async {
-                    board.reset()
-                    board.setBlocks(blocks: blocks)
-                    startOverStart = false
-                    board.start()
+                    blocks = [CGPoint : Block]()
+                    numOfBlocks = Int.random(in: blocksRange)
+                    leftBlocks = Int.random(in: blocksRange)
+                    
+                    let totalBlocks = numOfBlocks + leftBlocks
+                    
+                    if totalBlocks < minNumOfBlocks {
+                        let addNumOfBlocks = Int.random(in: 0...minNumOfBlocks - totalBlocks)
+                        numOfBlocks += addNumOfBlocks
+                        leftBlocks = minNumOfBlocks - addNumOfBlocks
+                    }
+                    leftBlocksCount = leftBlocks
+                    
+                    label.text = "\(leftBlocksCount) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
+                    var numOfSkips = 0
+                    while blocks.count < numOfBlocks {
+                        let randomX = Int.random(in: 0...numOfX - 1)
+                        let randomY = Int.random(in: yStartIndex...numOfY - 1)
+                        
+                        let key = CGPoint(x: randomX, y: randomY)
+                        var skip = false
+                        for startPoint in startPoints {
+                            guard !key.equalTo(startPoint), blocks[key] == nil, !key.equalTo(CGPoint(x: point.x - 1, y: point.y - 1)) else {
+                                skip = true
+                                break
+                            }
+                        }
+                        
+                        guard !skip else { continue }
+                        var blocksTemp = [CGPoint : Block?]()
+                        blocksTemp = blocks
+                        blocksTemp[key] = Block(name: "block", state: .solid)
+                        let list = Board(blocks: blocksTemp, view: view, size: point, sizeOfItem: size2D, numberOfPlayers: numberOfPlayers, gameParams: (startPoints, winPoint), padding: CGFloat(numOfX) *  widthRemoval / 2).getGraph(from: startPoints.first!)
+                        
+                        let stack = Character(type: .player, start: startPoints.first!, win: winPoint, padding: padding, playerSpeed: 0.38).depthFirstSearch(from: Vertex(data: startPoints.first!), to: Vertex(data: winPoint), graph: list)
+                        
+                        if stack.isEmpty() {
+                            numOfSkips += 1
+                            if numOfSkips > 80 {
+                                numOfSkips = 0
+                                numOfBlocks -= 1
+                            }
+                            skip = true
+                        }
+                        guard !skip else { continue }
+                        blocks[key] = Block(name: "block", state: .solid)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        board.container.alpha = 1
+                        board.reset()
+                        board.setBlocks(blocks: blocks)
+                        startOverStart = false
+                        board.start()
+                    }
                 }
             }))
             self.present(alert, animated: true, completion: nil)
         }
         
-        board.blocksUpdate = { [self] newBlocks in
-            blocks = newBlocks
-        }
+        //        board.blocksUpdate = { [self] newBlocks in
+        //            blocks = newBlocks
+        //        }
         
         board.addBlock = { [self] point, players in
             guard !board.isGameOver() else { return }
@@ -215,8 +233,8 @@ class ViewController: UIViewController {
                     return
                 }
                 let key = CGPoint(x: Int(point.x / CGFloat(sizeX)), y: Int(point.y / CGFloat(sizeY)))
-                let block = blocks[key]
-                guard !key.equalTo(winPoint), block == nil || block??.state == .empty else {
+                let block = board.getBlocks()[key]
+                guard !key.equalTo(winPoint) && (block == nil || block??.state == .empty) else {
                     board.cantAddEffect?(CGRect(x: CGFloat(numOfX) *  widthRemoval / 2 + CGFloat(Int(point.x / CGFloat(sizeX))) * CGFloat(sizeX), y: CGFloat(Int(point.y / CGFloat(sizeY))) * CGFloat(sizeY), width: CGFloat(sizeX), height: CGFloat(sizeY)))
                     return
                 }
@@ -226,7 +244,7 @@ class ViewController: UIViewController {
                         return
                     }
                 }
-                blocks = board.getBlocks()
+                var blocks = board.getBlocks()
                 blocks[key] = Block(name: "block", state: .solid)
                 board.setBlocks(blocks: blocks)
                 blocks[key]?!.frame = blocks[key]!!.image!.frame
@@ -263,7 +281,7 @@ class ViewController: UIViewController {
             smokeEffect(block: block, effectType: .cant)
         }
     }
-
+    
     enum EffectType {
         case add, cant
         
@@ -272,7 +290,7 @@ class ViewController: UIViewController {
             case .add:
                 return "block"
             case .cant:
-                return "enemy"
+                return "enemy@"
             default:
                 return "block"
             }
@@ -352,13 +370,13 @@ class ViewController: UIViewController {
 public class Board {
     private var blocks: [CGPoint : Block?]!
     
+    private var originalBlocks: [CGPoint : Block?]!
+    
     private var winImage: UIImageView!
     
     private var players: [Character]!
     
     private var numOfPlayers: Int!
-    
-    private var container: UIView!
     
     private var size: CGPoint = .zero
     
@@ -372,6 +390,12 @@ public class Board {
     
     private var clickAllowed = true
     
+    private var stuckPlayers: [Character]!
+    
+    var container: UIView!
+    
+    var numUnFinishedPlayers: Int!
+    
     var startOver: ((String) -> ())?
     
     var addEffect: ((Block) -> ())?
@@ -380,7 +404,7 @@ public class Board {
     
     var addBlock: ((CGPoint, [Character]) -> ())?
     
-    var blocksUpdate: (([CGPoint : Block?]) -> ())?
+    //    var blocksUpdate: (([CGPoint : Block?]) -> ())?
     
     var tap: UITapGestureRecognizer!
     var moveBlockLeft: UISwipeGestureRecognizer!
@@ -389,9 +413,11 @@ public class Board {
     var moveBlockUp: UISwipeGestureRecognizer!
     
     init(blocks: [CGPoint : Block?], view: UIView?, size: CGPoint, sizeOfItem: CGSize, numberOfPlayers: Int, gameParams: (startLocations: [CGPoint], winLocation: CGPoint), padding: CGFloat) {
-        self.players = [Character]()
+        players = [Character]()
         self.blocks = blocks
+        originalBlocks = blocks
         numOfPlayers = numberOfPlayers
+        numUnFinishedPlayers = numberOfPlayers
         container = view
         winImage = UIImageView(image: UIImage(named: "win"))
         view?.addSubview(winImage)
@@ -521,6 +547,8 @@ public class Board {
             break
         }
         
+        guard !newKey.equalTo(win) else { return }
+        
         for player in players {
             guard !newKey.equalTo(player.location) else { return }
         }
@@ -530,13 +558,13 @@ public class Board {
             guard !newKey.equalTo(key) else { return }
         }
         
-        image.frame.origin = moveTo
+        UIView.animate(withDuration: 0.04) {
+            image.frame.origin = moveTo
+        }
         
         DispatchQueue.main.async { [self] in
             blocks[key] = nil
             blocks[newKey] = value
-            
-            blocksUpdate?(blocks)
             
             for player in players {
                 guard player.lose || player.isOnTheWay(point: newKey) else { continue }
@@ -566,6 +594,7 @@ public class Board {
     private var playerMoveAnimationTime: Double = 0.4
     
     func start() {
+        stuckPlayers = nil
         tap = UITapGestureRecognizer(target: self, action: #selector(addBlockTap(gestureRecognizer:)))
         container.addGestureRecognizer(tap)
         
@@ -577,7 +606,7 @@ public class Board {
         moveBlockUp.direction = .up
         moveBlockDown = UISwipeGestureRecognizer(target: self, action: #selector(moveBlockSwipe(gestureRecognizer:)))
         moveBlockDown.direction = .down
-
+        
         container?.addGestureRecognizer(moveBlockLeft)
         container?.addGestureRecognizer(moveBlockRight)
         container?.addGestureRecognizer(moveBlockUp)
@@ -595,17 +624,45 @@ public class Board {
                 guard !location.equalTo(win) else { return true }
                 for character in players {
                     guard player != character else { continue }
-                    guard !location.equalTo(character.location) else { return false }
+                    guard !location.equalTo(character.location) else {
+                        return false
+                    }
                 }
                 return true
             }
             
-            player.moveInformer = { [self] location in
+            player.stuck = { [weak self] stuck in
+                if self?.stuckPlayers == nil {
+                    self?.stuckPlayers = [Character]()
+                }
+                if stuck {
+                    self?.stuckPlayers.append(player)
+                }
+                else {
+                    guard let index = self?.stuckPlayers.firstIndex(where: { (char) -> Bool in
+                        return char == player
+                    }) else { return }
+                    self?.stuckPlayers.remove(at: index)
+                }
+            }
+            
+            player.checkForStuck = { [weak self] in
+                if self?.stuckPlayers == nil {
+                    self?.stuckPlayers = [Character]()
+                }
+                if self?.stuckPlayers.count ?? 0 == self?.numUnFinishedPlayers {
+                    for player in self!.players {
+                        player.loase()
+                    }
+                }
+            }
+            
+            player.moveInformer = { [self] location, restart in
                 if location.equalTo(win) {
                     clickAllowed = clickAllowed && !isGameOver()
                 }
-
-                UIView.animate(withDuration: playerMoveAnimationTime) {
+                
+                UIView.animate(withDuration: restart ? 0 : playerMoveAnimationTime) {
                     let image = UIImage(cgImage: player.image.image!.cgImage!, scale: 1.0, orientation: player.image.frame.origin.x > padding + sizeOfItem.width * location.x ? .upMirrored : .up)
                     player.image.image = image
                     player.image.frame = CGRect(x: padding + sizeOfItem.width * location.x, y: sizeOfItem.height * location.y , width: sizeOfItem.width , height: sizeOfItem.height)
@@ -633,6 +690,32 @@ public class Board {
             }
             
             players.append(player)
+            DispatchQueue.main.asyncAfter(deadline: .now() + startDelay) {
+                player.start()
+            }
+        }
+    }
+    
+    func restart() {
+        
+        numUnFinishedPlayers = numOfPlayers
+        stuckPlayers = nil
+        
+        setBlocks(blocks: originalBlocks)
+        
+        clickAllowed = true
+        
+        var i = 0
+        
+        for player in players {
+            player.reset(start: startLocations[i])
+            player.image.removeFromSuperview()
+            container.addSubview(player.image)
+            player.image.frame = CGRect(x: padding + startLocations[i].x * sizeOfItem.width, y: startLocations[i].y * sizeOfItem.height , width: sizeOfItem.width, height: sizeOfItem.height)
+            i += 1
+        }
+        
+        for player in players {
             DispatchQueue.main.asyncAfter(deadline: .now() + startDelay) {
                 player.start()
             }
@@ -669,7 +752,7 @@ public class Board {
                 blocksAround[point] = (blocks[point] ?? Block(state: .empty), score)
             }
         }
-
+        
         return blocksAround
     }
     
@@ -742,7 +825,7 @@ public class Board {
 class Character: CustomStringConvertible {
     
     var description: String {
-        return "\nlocation: \(location!)\nisFinish: \(isFinish)\nlose: \(lose)\nstack: \(stack.description)"
+        return "\nlocation: \(location!)\nisFinish: \(isFinish)\nlose: \(lose)\nstack: \(stack.description)\nfinish: \(isFinish)\nstuck: \(isStuck)"
     }
     
     enum Condition {
@@ -767,9 +850,11 @@ class Character: CustomStringConvertible {
     private var winLocation: CGPoint!
     private var boardInformer: (() -> (Board?))?
     private var playerType: PlayerType = .player
-    var moveInformer: ((CGPoint) -> ())?
+    var moveInformer: ((CGPoint, Bool) -> ())?
     var isMoveAllowed: ((CGPoint) -> (Bool))?
+    var stuck: ((Bool) -> ())?
     var startOver: ((String) -> ())?
+    var checkForStuck: (() -> ())?
     var image: UIImageView!
     var isFinish = false
     private static var numID = 0
@@ -795,7 +880,17 @@ class Character: CustomStringConvertible {
         id = "\(Character.numID)"
         Character.numID += 1
         
-        moveInformer?(location)
+        moveInformer?(location, true)
+    }
+    
+    func reset(start: CGPoint) {
+        image.alpha = 1
+        location = start
+        isFinish = false
+        lose = false
+        isStuck = false
+        Character.numID = 0
+        moveInformer?(location, true)
     }
     
     static func == (lh: Character, rh: Character) -> Bool {
@@ -847,9 +942,9 @@ class Character: CustomStringConvertible {
             DispatchQueue.main.async { [weak self] in
                 guard let strongSelf = self else { return }
                 strongSelf.timerControl(start: false)
-
+                
                 strongSelf.calcState()
-     
+                
                 strongSelf.timerControl(start: true)
             }
         }
@@ -860,6 +955,8 @@ class Character: CustomStringConvertible {
             let way = lookForWay(location: location, winLocation: winLocation)
             
             lose = way.isEmpty()
+            
+            isFinish = false
             
             if lose {
                 if think == nil {
@@ -883,12 +980,35 @@ class Character: CustomStringConvertible {
     
     private var delay: Double = 0.3
     private var restartDelay: Double = 0.2
+    private var stuckCounter = 0
+    private var isStuck = false {
+        didSet {
+            if oldValue != isStuck {
+                stuck?(isStuck)
+                checkForStuck?()
+            }
+        }
+    }
     
     private func checkWhereToGo() {
         
         var condition: Condition = stack.isEmpty() ? .lose : .move
         if !lose || condition != .lose {
-            guard let point = stack.peekFirst()?.data, let isMoveAllowed = isMoveAllowed, isMoveAllowed(point) else { return }
+            guard let point = stack.peekFirst()?.data  else {
+                return
+            }
+            if let isMoveAllowed = isMoveAllowed {
+                let allow = isMoveAllowed(point)
+                isStuck = !allow
+                
+//                stuckCounter += isStuck ? 1 : -1
+                
+//                if stuckCounter == 20 {
+//                    calcGameState()
+//                }
+                checkForStuck?()
+                guard allow else { return }
+            }
             let next = stack.queuePop()?.data
             location = next ?? location
             condition = location.equalTo(winLocation) ? .win : .move
@@ -903,26 +1023,35 @@ class Character: CustomStringConvertible {
         
         switch condition {
         case .lose:
-            if timer != nil {
-                timer.invalidate()
-            }
-            timer = nil
-            startOver?("You Win")
-        case .win:
-            moveInformer?(location)
-            if timer != nil {
-                timer.invalidate()
-            }
-            timer = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
-                image.alpha = 0.4
+                loase()
+                stuck?(true)
+            }
+        case .win:
+            if timer != nil {
+                timer.invalidate()
+            }
+            timer = nil
+            moveInformer?(location, false)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+                image.alpha = 0.2
                 DispatchQueue.main.asyncAfter(deadline: .now() + restartDelay) {
-                    self.startOver?("You Lose")
+                    startOver?("You Win")
                 }
             }
+            
         default:
-            moveInformer?(location)
+            moveInformer?(location, false)
         }
+    }
+    
+    func loase() {
+        if timer != nil {
+            timer.invalidate()
+        }
+        timer = nil
+        
+        self.startOver?("You Lose")
     }
     
     func lookForWay(location: CGPoint, winLocation: CGPoint) ->  Stack<Vertex<CGPoint>> {
