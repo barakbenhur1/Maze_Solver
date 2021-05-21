@@ -683,7 +683,7 @@ public class Board {
                         if self?.stuckPlayers.count ?? 0 >= self?.numUnFinishedPlayers ?? 0 {
                             
                             for player in self!.players {
-                                guard player.isStuck || player.lose else {return}
+                                guard player.isStuck || player.lose || player.isFinish else {return}
                                 
                             }
                             for player in self!.players {
