@@ -16,7 +16,7 @@ class ViewController: UIViewController {
     
     private let minNumOfBlocks = 90
     
-    private let minNumSpoonedOfBlocks = 30
+    private let minNumSpoonedOfBlocks = 30...70
     
     private var blocksRange = 10...70
     
@@ -36,13 +36,13 @@ class ViewController: UIViewController {
         
         view.addSubview(label)
         
-        numOfBlocks = Int.random(in: blocksRange)
-        var leftBlocks = 3
+        numOfBlocks = Int.random(in: minNumSpoonedOfBlocks)
+        var leftBlocks = Int.random(in: blocksRange)
         
         let totalBlocks = numOfBlocks + leftBlocks
         
         if totalBlocks < minNumOfBlocks {
-            let addNumOfBlocks = Int.random(in: minNumSpoonedOfBlocks...minNumOfBlocks - totalBlocks)
+            let addNumOfBlocks = Int.random(in: 0...minNumOfBlocks - totalBlocks)
             numOfBlocks += addNumOfBlocks
             leftBlocks = minNumOfBlocks - addNumOfBlocks
         }
@@ -141,17 +141,24 @@ class ViewController: UIViewController {
         
         board.start()
         
+        var numOfWins = 0
+        var NumOfLoases = 0
+        
         var startOverStart = false
         board.startOver = { [unowned self] text in
-            guard board.isGameOver(), !startOverStart else { return }
             let win = text.lowercased().contains("win")
-            board.numUnFinishedPlayers -= 1
+            
+            guard win || board.isGameOver(), !startOverStart else { return }
+            board.stop()
             startOverStart = true
-            let alert = UIAlertController(title: text, message: win ? "Well Done :)" : "Too Bed :(", preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: win ? "Next" : "Retry", style: .default, handler: { [self] action in
+//            let alert = UIAlertController(title: text, message: win ? "Well Done :)" : "Too Bed :(", preferredStyle: .alert)
+//            alert.addAction(UIAlertAction(title: win ? "Next" : "Retry", style: .default, handler: { [self] action in
                 board.numUnFinishedPlayers = numberOfPlayers
                 board.container.alpha = 0.2
                 guard win else {
+                    NumOfLoases += 1
+                    let total = NumOfLoases + numOfWins
+                    print("loase\n\("\(Int(100 * CGFloat(CGFloat(NumOfLoases) / CGFloat(total))))% loase rate")")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         board.container.alpha = 1
                         label.text = "\(leftBlocks) Out Of \(numOfBlocks + leftBlocks) Blocks Left"
@@ -210,6 +217,9 @@ class ViewController: UIViewController {
                         blocks[key] = Block(name: "block", state: .solid)
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        numOfWins += 1
+                        let total = numOfWins + NumOfLoases
+                        print("win\n\("\(Int(100 * CGFloat(CGFloat(numOfWins) / CGFloat(total))))% win rate")")
                         board.container.alpha = 1
                         board.reset()
                         board.setBlocks(blocks: blocks)
@@ -217,8 +227,8 @@ class ViewController: UIViewController {
                         board.start()
                     }
                 }
-            }))
-            self.present(alert, animated: true, completion: nil)
+//            }))
+//            self.present(alert, animated: true, completion: nil)
         }
         
         //        board.blocksUpdate = { [self] newBlocks in
@@ -396,6 +406,8 @@ public class Board {
     
     var numUnFinishedPlayers: Int!
     
+    var isStop = false
+    
     var startOver: ((String) -> ())?
     
     var addEffect: ((Block) -> ())?
@@ -475,9 +487,18 @@ public class Board {
         return blocks
     }
     
+    func stop() {
+        isStop = true
+        for player in players {
+            guard player.timer != nil else { continue }
+            player.timer.invalidate()
+            player.timer = nil
+        }
+    }
+    
     func isGameOver() -> Bool {
         for player in players {
-            if !player.isFinish {
+            if !player.isFinish && player.playerType == .enemy {
                 return false
             }
         }
@@ -503,7 +524,7 @@ public class Board {
     }
     
     @objc func moveBlockSwipe(gestureRecognizer: UISwipeGestureRecognizer) {
-        guard !isGameOver() else { return }
+        guard !didWin && !isGameOver() else { return }
         var blockImage: UIImageView? = nil
         var blockValue: Block? = nil
         var blockKey: CGPoint? = nil
@@ -558,6 +579,8 @@ public class Board {
             guard !newKey.equalTo(key) else { return }
         }
         
+        isCalc = true
+        
         UIView.animate(withDuration: 0.04) {
             image.frame.origin = moveTo
         }
@@ -589,9 +612,11 @@ public class Board {
     }
     
     private var startDelay: Double = 0.1
-    private var playerMoveTime: Double = 0.38
+    private var playerMoveTime: Double = 0.34
     private var enemyMoveTime: Double = 0.48
     private var playerMoveAnimationTime: Double = 0.4
+    private var isCalc: Bool = false
+    private var didWin: Bool = false
     
     func start() {
         stuckPlayers = nil
@@ -650,9 +675,21 @@ public class Board {
                 if self?.stuckPlayers == nil {
                     self?.stuckPlayers = [Character]()
                 }
-                if self?.stuckPlayers.count ?? 0 == self?.numUnFinishedPlayers {
-                    for player in self!.players {
-                        player.loase()
+                if self?.stuckPlayers.count ?? 0 >= self?.numUnFinishedPlayers ?? 0 {
+                    self?.isCalc = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 8 * player.playerMoveSpeed) {
+                        
+                        guard self?.stuckPlayers != nil, !self!.isCalc else { return }
+                        if self?.stuckPlayers.count ?? 0 >= self?.numUnFinishedPlayers ?? 0 {
+                            
+                            for player in self!.players {
+                                guard player.isStuck || player.lose else {return}
+                                
+                            }
+                            for player in self!.players {
+                                player.loase()
+                            }
+                        }
                     }
                 }
             }
@@ -662,7 +699,10 @@ public class Board {
                     clickAllowed = clickAllowed && !isGameOver()
                 }
                 
+                    guard !isStop else { return }
+                    
                 UIView.animate(withDuration: restart ? 0 : playerMoveAnimationTime) {
+                    guard !player.isFinish else { return }
                     let image = UIImage(cgImage: player.image.image!.cgImage!, scale: 1.0, orientation: player.image.frame.origin.x > padding + sizeOfItem.width * location.x ? .upMirrored : .up)
                     player.image.image = image
                     player.image.frame = CGRect(x: padding + sizeOfItem.width * location.x, y: sizeOfItem.height * location.y , width: sizeOfItem.width , height: sizeOfItem.height)
@@ -679,9 +719,11 @@ public class Board {
                 return self
             })
             
-            player.startOver = { text in
+            player.startOver = { [self] text in
                 player.isFinish = true
-                guard self.isGameOver() else { return }
+                
+                guard player.playerType == .player || self.isGameOver() else { return }
+                didWin = player.playerType == .player && !player.lose
                 for player in self.players {
                     guard player.think != nil else { continue }
                     player.think.removeFromSuperview()
@@ -697,13 +739,15 @@ public class Board {
     }
     
     func restart() {
-        
+        isStop = false
         numUnFinishedPlayers = numOfPlayers
         stuckPlayers = nil
         
         setBlocks(blocks: originalBlocks)
         
         clickAllowed = true
+        
+        didWin = false
         
         var i = 0
         
@@ -723,6 +767,7 @@ public class Board {
     }
     
     func reset() {
+        isStop = false
         guard self.players != nil else { return }
         for i in 0..<self.players.count {
             self.players[i].image.removeFromSuperview()
@@ -812,14 +857,6 @@ public class Board {
     private func distance(from: CGPoint, to: CGPoint) -> CGFloat {
         return sqrt(pow(from.x - to.x, 2) + pow(from.y - to.y, 2))
     }
-    
-    func getBlockLocations() -> [CGPoint] {
-        return Array(blocks.keys)
-    }
-    
-    func getBlockState(key: CGPoint) -> State {
-        return (blocks[key] as? Block)!.state
-    }
 }
 
 class Character: CustomStringConvertible {
@@ -849,7 +886,7 @@ class Character: CustomStringConvertible {
     var think: UIImageView!
     private var winLocation: CGPoint!
     private var boardInformer: (() -> (Board?))?
-    private var playerType: PlayerType = .player
+    var playerType: PlayerType = .player
     var moveInformer: ((CGPoint, Bool) -> ())?
     var isMoveAllowed: ((CGPoint) -> (Bool))?
     var stuck: ((Bool) -> ())?
@@ -860,13 +897,13 @@ class Character: CustomStringConvertible {
     private static var numID = 0
     private let id: String!
     
-    private var playerMoveSpeed: Double = 0
+    var playerMoveSpeed: Double = 0
     
     private var stack: Stack<Vertex<CGPoint>>!
     
     var lose = false
     
-    private var timer: Timer!
+    var timer: Timer!
     
     private var xPadding: CGFloat = 0
     
@@ -889,7 +926,7 @@ class Character: CustomStringConvertible {
         isFinish = false
         lose = false
         isStuck = false
-        Character.numID = 0
+//        Character.numID = 0
         moveInformer?(location, true)
     }
     
@@ -981,7 +1018,7 @@ class Character: CustomStringConvertible {
     private var delay: Double = 0.3
     private var restartDelay: Double = 0.2
     private var stuckCounter = 0
-    private var isStuck = false {
+    var isStuck = false {
         didSet {
             if oldValue != isStuck {
                 stuck?(isStuck)
@@ -1001,11 +1038,11 @@ class Character: CustomStringConvertible {
                 let allow = isMoveAllowed(point)
                 isStuck = !allow
                 
-//                stuckCounter += isStuck ? 1 : -1
+                stuckCounter += isStuck ? 1 : -1
                 
-//                if stuckCounter == 20 {
-//                    calcGameState()
-//                }
+                if stuckCounter == 80 {
+                    calcGameState()
+                }
                 checkForStuck?()
                 guard allow else { return }
             }
@@ -1033,10 +1070,21 @@ class Character: CustomStringConvertible {
             }
             timer = nil
             moveInformer?(location, false)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
-                image.alpha = 0.2
-                DispatchQueue.main.asyncAfter(deadline: .now() + restartDelay) {
-                    startOver?("You Win")
+            isFinish = true
+            switch playerType {
+            case .player:
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+                    image.alpha = 0.2
+                    DispatchQueue.main.asyncAfter(deadline: .now() + restartDelay) {
+                        boardInformer?()?.stop()
+                        startOver?("You Win")
+                        stuck?(true)
+                    }
+                }
+            case .enemy:
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+                    loase()
+                    stuck?(true)
                 }
             }
             
@@ -1046,6 +1094,7 @@ class Character: CustomStringConvertible {
     }
     
     func loase() {
+        isFinish = true
         if timer != nil {
             timer.invalidate()
         }
